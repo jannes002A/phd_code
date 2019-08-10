@@ -1,0 +1,13 @@
+# ignore Data Butan
+/Convolution/DataButan/
+
+/Convolution/Bilder/
+
+# ignore all mat files
+*.mat
+
+# ignore all eps files
+*.eps
+
+# ignore Figure files
+/GradientEstimators/Figures
