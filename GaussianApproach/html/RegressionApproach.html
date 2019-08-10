@@ -1,0 +1,380 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>RegressionApproach</title><meta name="generator" content="MATLAB 9.3"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2018-02-21"><meta name="DC.source" content="RegressionApproach.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; } 
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><pre class="codeinput"><span class="comment">% Cross Entropy Gaussian Process Model Double Well</span>
+<span class="comment">% Corrected Nonparametric Estimator with different Girsanov</span>
+
+clear
+<span class="comment">% Sampling</span>
+<span class="comment">% a bias can be included here</span>
+V=@(x)  1/2.*(x.^2-1).^2;
+gradV = @(x) 2*x.*(x.^2-1);
+dt = 0.01;
+sdt = sqrt(dt);
+beta = 2;
+sigma = sqrt(2/beta);
+xzero=-1;
+
+nvs = 1;
+ntrjs = 20; <span class="comment">%number of trajectories</span>
+opt_steps=1;
+nsteps = 150;
+n_pred=100;
+sk= 0.01;
+l= 0.2;
+pathfunc =  ones(ntrjs,1);
+trajlength = zeros(ntrjs+1,1);
+c_old = zeros(opt_steps,n_pred);
+time = zeros(ntrjs,1);
+c_pred=0;
+
+<span class="comment">% the considers path functional is the moment generating function of the</span>
+<span class="comment">% stopping time</span>
+
+bias=0;
+
+<span class="keyword">for</span> opt = 1:opt_steps
+
+
+        <span class="comment">%Eta= randn(ntrjs,nsteps-1);</span>
+        time=zeros(1,ntrjs);
+        X = [];
+        gV= [];
+        X(1)=xzero;
+        costfunc = zeros(1,ntrjs);
+        trajlength = ones(ntrjs+1,1);
+        Is = 0;
+        Id = 0;
+        j=1;
+
+    <span class="keyword">for</span> i = 1:ntrjs
+
+        x = xzero;
+        t=0;
+        cost=0;
+
+        <span class="keyword">while</span> (x&lt;0)
+            j=j+1;
+            t=t+1;
+            eta=randn(1);
+
+
+            <span class="keyword">if</span> opt==1
+                x = x + (- gradV(x)+bias) * dt + eta * sigma*sdt;
+            <span class="keyword">else</span>
+                K_p = sk.*exp(-0.5*(data'-x).^2/l.^2);
+                bias = -K_p' *c_prior;
+                x = x + (-gradV(x)+bias)*dt + eta * sigma*sdt;
+            <span class="keyword">end</span>
+            X(j) = x;
+            cost=cost+bias*bias*dt;
+
+            Is = Is - bias * eta/ sigma * sdt;
+            Id = Id - bias.^2 / sigma^2 *dt;
+
+
+        <span class="keyword">end</span>
+        time(i)=t;
+        pathfunc(i)=exp(-1/beta*t*dt)*exp(Is+0.5*Id);
+        costfunc(i)=1/4 * cost;
+        trajlength(i+1) = trajlength(i)+t;
+
+    <span class="keyword">end</span>
+
+    data=X;
+
+    K=zeros(length(data),length(data));
+
+    pathweight=zeros(length(data),1);
+
+    <span class="keyword">for</span> k=1:ntrjs
+        pathweight(trajlength(k):trajlength(k+1))= pathfunc(k);
+    <span class="keyword">end</span>
+
+
+    <span class="keyword">for</span> j=1:length(data)
+            K(j,:) = sk.*exp(-0.5*(data'-data(j)).^2/l.^2);
+    <span class="keyword">end</span>
+    K= K + 1e-10*speye(length(data),length(data));
+
+    obs = (pathweight*dt)./(2/beta).*(data');
+    c_prior = (inv(K) + (pathweight*dt)./(2/beta).*speye(length(data),length(data))) \ obs;
+
+    x_pred = linspace(-2,2,n_pred);
+    K_pred = zeros(length(x_pred),length(data));
+
+    <span class="keyword">for</span> j=1:length(x_pred)
+        K_pred(j,:) = sk.*exp(-0.5*(data'-x_pred(j)).^2/l.^2);
+    <span class="keyword">end</span>
+
+    c_pred = - K_pred * c_prior;
+
+    figure(opt)
+    plot(x_pred,c_pred)
+
+    p=mean(time*dt);
+    fprintf(<span class="string">'Mean average hitting time %f \n'</span>, p )
+    fprintf(<span class="string">'Var(time) %f \n'</span>, var(time*dt))
+    fprintf(<span class="string">'Mean average pathfunctional	 %f \n'</span>, mean(pathfunc) )
+    fprintf(<span class="string">'Variance pathfunctional %f \n'</span>, var(pathfunc))
+<span class="keyword">end</span>
+</pre><pre class="codeoutput">Mean average hitting time 2.841000 
+Var(time) 4.215304 
+Mean average pathfunctional	 0.359785 
+Variance pathfunctional 0.073786 
+</pre><img vspace="5" hspace="5" src="RegressionApproach_01.png" alt=""> <pre class="codeinput">figure(1)
+plot(x_pred, c_pred,<span class="string">'LineWidth'</span>,3)
+title(<span class="string">'Control'</span>)
+
+figure(6)
+plot(x_pred,  -gradV(x_pred),x_pred,   c_pred' -gradV(x_pred),<span class="string">'LineWidth'</span>,3 );
+legend(<span class="string">'-gradV'</span>,<span class="string">'-gradV+cPred'</span>)
+title(<span class="string">'Gradients'</span>)
+
+dx=x_pred(2)-x_pred(1);
+per_pot = zeros(1,n_pred+1);
+control = zeros(1,n_pred+1);
+c_predh =zeros(1,n_pred+1);
+c_predh(2:end)= c_pred;
+
+<span class="keyword">for</span> i=2:n_pred+1
+    per_pot(i) = per_pot(i-1) + (-c_predh(i-1)' + gradV(x_pred(i-1)) )*dx;
+    control(i) = control(i-1) -c_predh(i-1)*dx;
+<span class="keyword">end</span>
+
+<span class="comment">% figure(7)</span>
+<span class="comment">% plot(x_pred,V(x_pred),x_pred,per_pot(2:end)+0.5,'LineWidth',3);</span>
+<span class="comment">% legend('Potential','Perturbed Potential')</span>
+<span class="comment">% title('Perturbed Potential')</span>
+
+figure(8)
+plot(x_pred,V(x_pred),x_pred,V(x_pred)+control(2:end)+1.1,<span class="string">'LineWidth'</span>,3);
+legend(<span class="string">'Potential'</span>,<span class="string">'Perturbed Potential'</span>)
+
+figure(9)
+plot(x_pred,control(2:end)+11,<span class="string">'LineWidth'</span>,3);
+legend(<span class="string">'Predicted Control (Integral)'</span>)
+</pre><img vspace="5" hspace="5" src="RegressionApproach_02.png" alt=""> <img vspace="5" hspace="5" src="RegressionApproach_03.png" alt=""> <img vspace="5" hspace="5" src="RegressionApproach_04.png" alt=""> <img vspace="5" hspace="5" src="RegressionApproach_05.png" alt=""> <p class="footer"><br><a href="http://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2017b</a><br></p></div><!--
+##### SOURCE BEGIN #####
+% Cross Entropy Gaussian Process Model Double Well
+% Corrected Nonparametric Estimator with different Girsanov
+
+clear 
+% Sampling 
+% a bias can be included here
+V=@(x)  1/2.*(x.^2-1).^2;
+gradV = @(x) 2*x.*(x.^2-1);
+dt = 0.01;
+sdt = sqrt(dt);
+beta = 2;
+sigma = sqrt(2/beta);
+xzero=-1;
+
+nvs = 1;
+ntrjs = 20; %number of trajectories
+opt_steps=1;
+nsteps = 150;
+n_pred=100;
+sk= 0.01;
+l= 0.2;
+pathfunc =  ones(ntrjs,1);
+trajlength = zeros(ntrjs+1,1);
+c_old = zeros(opt_steps,n_pred);
+time = zeros(ntrjs,1);
+c_pred=0;
+
+% the considers path functional is the moment generating function of the
+% stopping time
+
+bias=0;
+
+for opt = 1:opt_steps
+
+        
+        %Eta= randn(ntrjs,nsteps-1);
+        time=zeros(1,ntrjs);
+        X = [];
+        gV= [];
+        X(1)=xzero;
+        costfunc = zeros(1,ntrjs);
+        trajlength = ones(ntrjs+1,1);
+        Is = 0;
+        Id = 0;
+        j=1;
+        
+    for i = 1:ntrjs
+
+        x = xzero;
+        t=0;
+        cost=0;
+        
+        while (x<0) 
+            j=j+1;
+            t=t+1;
+            eta=randn(1);
+            
+            
+            if opt==1
+                x = x + (- gradV(x)+bias) * dt + eta * sigma*sdt;
+            else
+                K_p = sk.*exp(-0.5*(data'-x).^2/l.^2);
+                bias = -K_p' *c_prior;
+                x = x + (-gradV(x)+bias)*dt + eta * sigma*sdt;
+            end
+            X(j) = x;
+            cost=cost+bias*bias*dt;
+            
+            Is = Is - bias * eta/ sigma * sdt;
+            Id = Id - bias.^2 / sigma^2 *dt;
+
+ 
+        end
+        time(i)=t;
+        pathfunc(i)=exp(-1/beta*t*dt)*exp(Is+0.5*Id);
+        costfunc(i)=1/4 * cost;
+        trajlength(i+1) = trajlength(i)+t;  
+
+    end
+    
+    data=X;
+    
+    K=zeros(length(data),length(data));
+    
+    pathweight=zeros(length(data),1);
+    
+    for k=1:ntrjs
+        pathweight(trajlength(k):trajlength(k+1))= pathfunc(k); 
+    end
+    
+   
+    for j=1:length(data)
+            K(j,:) = sk.*exp(-0.5*(data'-data(j)).^2/l.^2);
+    end
+    K= K + 1e-10*speye(length(data),length(data));
+    
+    obs = (pathweight*dt)./(2/beta).*(data');  
+    c_prior = (inv(K) + (pathweight*dt)./(2/beta).*speye(length(data),length(data))) \ obs;
+
+    x_pred = linspace(-2,2,n_pred);
+    K_pred = zeros(length(x_pred),length(data));
+    
+    for j=1:length(x_pred)
+        K_pred(j,:) = sk.*exp(-0.5*(data'-x_pred(j)).^2/l.^2);
+    end
+
+    c_pred = - K_pred * c_prior;
+    
+    figure(opt)
+    plot(x_pred,c_pred)
+    
+    p=mean(time*dt);
+    fprintf('Mean average hitting time %f \n', p )
+    fprintf('Var(time) %f \n', var(time*dt))
+    fprintf('Mean average pathfunctional	 %f \n', mean(pathfunc) )
+    fprintf('Variance pathfunctional %f \n', var(pathfunc))
+end
+%%
+
+
+
+figure(1)
+plot(x_pred, c_pred,'LineWidth',3)
+title('Control')
+
+figure(6)
+plot(x_pred,  -gradV(x_pred),x_pred,   c_pred' -gradV(x_pred),'LineWidth',3 ); 
+legend('-gradV','-gradV+cPred')
+title('Gradients')
+
+dx=x_pred(2)-x_pred(1);
+per_pot = zeros(1,n_pred+1);
+control = zeros(1,n_pred+1);
+c_predh =zeros(1,n_pred+1);
+c_predh(2:end)= c_pred; 
+
+for i=2:n_pred+1
+    per_pot(i) = per_pot(i-1) + (-c_predh(i-1)' + gradV(x_pred(i-1)) )*dx;
+    control(i) = control(i-1) -c_predh(i-1)*dx;
+end
+
+% figure(7)
+% plot(x_pred,V(x_pred),x_pred,per_pot(2:end)+0.5,'LineWidth',3); 
+% legend('Potential','Perturbed Potential')
+% title('Perturbed Potential')
+
+figure(8)
+plot(x_pred,V(x_pred),x_pred,V(x_pred)+control(2:end)+1.1,'LineWidth',3); 
+legend('Potential','Perturbed Potential')
+
+figure(9)
+plot(x_pred,control(2:end)+11,'LineWidth',3); 
+legend('Predicted Control (Integral)')
+
+
+##### SOURCE END #####
+--></body></html>

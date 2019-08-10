@@ -1,0 +1,305 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>NonParaEst</title><meta name="generator" content="MATLAB 9.1"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2017-11-20"><meta name="DC.source" content="NonParaEst.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; } 
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><pre class="codeinput"><span class="comment">% Cross Entropy Gaussian Process Model Double Well</span>
+<span class="comment">% 1. Sampling of biased trajectories and evaluation of path functional</span>
+<span class="comment">% 2. Build Matrix for solving regularized linear equation</span>
+
+
+<span class="comment">% Sampling</span>
+<span class="comment">% a bias can be included here</span>
+gradV = @(x) 2*x.*(x.^2-1);
+dt = 0.01;
+sdt = sqrt(dt);
+beta = 3;
+sigma = sqrt(2/beta);
+
+nvs = 1;
+ntrjs = 10; <span class="comment">%number of trajectories</span>
+
+
+nsteps = 150;
+time=zeros(1,ntrjs);
+X = zeros(ntrjs,nsteps);
+X(:,1)=-1;
+<span class="comment">% the considers path functional is the moment generating function of the</span>
+<span class="comment">% stopping time</span>
+pathfunc = zeros(ntrjs,1);
+Eta= randn(ntrjs,nsteps-1);
+bias=-3;
+
+<span class="keyword">for</span> i = 1:ntrjs
+
+        Is=0;
+        Id=0;
+
+        x = -1;
+
+        first = 0;
+        <span class="keyword">for</span> j = 2:nsteps
+            eta=randn(1);
+            x = x - (gradV(x)+bias) * dt + eta * sigma*sdt;
+            X(i,j) = x;
+            Eta(i,j)= eta;
+
+            Is = Is + bias * eta/ sigma * sdt;
+            Id = Id - bias.^2 / sigma^2 *dt;
+
+
+             <span class="keyword">if</span>  x &gt; 0.9 &amp;&amp; x &lt; 1.1 &amp;&amp; first == 0
+             <span class="comment">%if x &gt; -1.1 &amp;&amp; x &lt; -0.9 &amp;&amp; first == 0</span>
+                 time(i) = j;
+                 pathfunc(i) = exp(-beta*j*dt)*exp(Is+0.5*Id); <span class="comment">%weighted path functional</span>
+                 X(i,j:end)=x;
+                 first = 1;
+                 <span class="keyword">break</span>;
+             <span class="keyword">end</span>
+        <span class="keyword">end</span>
+
+<span class="keyword">end</span>
+</pre><p>Building the matrix to solve the optimization problem</p><pre class="codeinput">l=1;
+k = @(a,b) 0.5/sqrt(2*pi)*l.^2.*exp(-0.5*(a-b).^2/l.^2);
+
+
+<span class="comment">%vector with observed data</span>
+X = X';
+data_obs = X(:);
+
+K=zeros(length(data_obs),length(data_obs));
+
+<span class="keyword">for</span> i=1:length(data_obs)
+    <span class="keyword">for</span> j=1:length(data_obs)
+        K(i,j) = k(data_obs(i),data_obs(j));
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+
+<span class="comment">%weighted vector with observed data</span>
+
+data_wei = (1/(2*beta))*pathfunc.*X';
+data_wei = data_wei(:);
+
+sigma_n=0.002;
+
+K=K+sigma_n*eye(length(data_obs),length(data_obs));
+c = K*data_wei;
+
+<span class="comment">% control prediction</span>
+xtest=linspace(-2,2,10);
+Kd=zeros(length(xtest),length(data_obs));
+
+<span class="keyword">for</span> i=1:length(xtest)
+    <span class="keyword">for</span> j=1:length(data_obs)
+        Kd(i,j)= k(xtest(i),data_obs(j));
+    <span class="keyword">end</span>
+<span class="keyword">end</span>
+
+c_pred = Kd*K*data_wei;
+
+figure(1)
+plot(xtest,-c_pred);
+title(<span class="string">'-Prediction'</span>)
+figure(2)
+plot(xtest,-gradV(xtest)); hold <span class="string">on</span>
+plot(xtest, -gradV(xtest)-c_pred')
+title(<span class="string">'Gradients'</span>)
+hold <span class="string">off</span>
+
+
+xdt=xtest(2)-xtest(1);
+c_int = zeros(1,length(c_pred)+1);
+
+<span class="keyword">for</span> i=2:length(c_pred)+1
+    c_int(i) = c_int(i-1) + (gradV(xtest(i-1))-c_pred(i-1))*xdt;
+<span class="keyword">end</span>
+
+figure(3)
+plot(xtest,c_int(2:end))
+title(<span class="string">'Perturbed Potential'</span>)
+</pre><img vspace="5" hspace="5" src="NonParaEst_01.png" alt=""> <img vspace="5" hspace="5" src="NonParaEst_02.png" alt=""> <img vspace="5" hspace="5" src="NonParaEst_03.png" alt=""> <p class="footer"><br><a href="http://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2016b</a><br></p></div><!--
+##### SOURCE BEGIN #####
+% Cross Entropy Gaussian Process Model Double Well
+% 1. Sampling of biased trajectories and evaluation of path functional
+% 2. Build Matrix for solving regularized linear equation 
+
+
+% Sampling 
+% a bias can be included here
+gradV = @(x) 2*x.*(x.^2-1);
+dt = 0.01;
+sdt = sqrt(dt);
+beta = 3;
+sigma = sqrt(2/beta);
+
+nvs = 1;
+ntrjs = 10; %number of trajectories
+
+
+nsteps = 150;
+time=zeros(1,ntrjs);
+X = zeros(ntrjs,nsteps);
+X(:,1)=-1;
+% the considers path functional is the moment generating function of the
+% stopping time
+pathfunc = zeros(ntrjs,1);
+Eta= randn(ntrjs,nsteps-1);
+bias=-3;
+
+for i = 1:ntrjs
+
+        Is=0;
+        Id=0;
+
+        x = -1;
+        
+        first = 0;
+        for j = 2:nsteps 
+            eta=randn(1);
+            x = x - (gradV(x)+bias) * dt + eta * sigma*sdt;
+            X(i,j) = x;
+            Eta(i,j)= eta;
+            
+            Is = Is + bias * eta/ sigma * sdt;
+            Id = Id - bias.^2 / sigma^2 *dt;
+            
+
+             if  x > 0.9 && x < 1.1 && first == 0
+             %if x > -1.1 && x < -0.9 && first == 0
+                 time(i) = j;
+                 pathfunc(i) = exp(-beta*j*dt)*exp(Is+0.5*Id); %weighted path functional 
+                 X(i,j:end)=x;
+                 first = 1;
+                 break;
+             end
+        end
+
+end
+
+
+%%
+% Building the matrix to solve the optimization problem 
+l=1;
+k = @(a,b) 0.5/sqrt(2*pi)*l.^2.*exp(-0.5*(a-b).^2/l.^2);
+
+
+%vector with observed data
+X = X';
+data_obs = X(:);
+
+K=zeros(length(data_obs),length(data_obs));
+
+for i=1:length(data_obs)
+    for j=1:length(data_obs)
+        K(i,j) = k(data_obs(i),data_obs(j));
+    end
+end
+
+%weighted vector with observed data
+
+data_wei = (1/(2*beta))*pathfunc.*X';
+data_wei = data_wei(:);
+
+sigma_n=0.002;
+
+K=K+sigma_n*eye(length(data_obs),length(data_obs));
+c = K*data_wei;
+
+% control prediction
+xtest=linspace(-2,2,10);
+Kd=zeros(length(xtest),length(data_obs));
+
+for i=1:length(xtest)
+    for j=1:length(data_obs)
+        Kd(i,j)= k(xtest(i),data_obs(j));
+    end
+end
+
+c_pred = Kd*K*data_wei;
+
+figure(1)
+plot(xtest,-c_pred); 
+title('-Prediction')
+figure(2)
+plot(xtest,-gradV(xtest)); hold on
+plot(xtest, -gradV(xtest)-c_pred')
+title('Gradients')
+hold off
+
+
+xdt=xtest(2)-xtest(1);
+c_int = zeros(1,length(c_pred)+1);
+
+for i=2:length(c_pred)+1
+    c_int(i) = c_int(i-1) + (gradV(xtest(i-1))-c_pred(i-1))*xdt;
+end
+
+figure(3)
+plot(xtest,c_int(2:end))
+title('Perturbed Potential')
+
+##### SOURCE END #####
+--></body></html>
