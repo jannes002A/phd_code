@@ -11,3 +11,6 @@
 
 # ignore Figure files
 /GradientEstimators/Figures
+
+# ignore the Mac files
+.DS_Store
